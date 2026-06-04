@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'eventflow.db');
+const DB_PATH = path.join(__dirname, 'showpool.db');
 
 let db;
 
@@ -98,129 +98,129 @@ async function initSchema() {
   `);
 }
 
+async function insertInterestsBatch(rows) {
+  const BATCH = 100;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const placeholders = batch.map(() => '(?,?,?,?,?,?)').join(',');
+    await run(
+      `INSERT INTO interests (show_id, event_id, user_name, user_email, desired_price, max_price) VALUES ${placeholders}`,
+      batch.flat()
+    );
+  }
+}
+
 async function seedData() {
   const existing = await get('SELECT COUNT(*) as count FROM events');
   if (existing.count > 0) return;
 
-  // Event 1: Radiohead en Buenos Aires — 2 fechas posibles, bastante interés
+  const { runClearing } = require('./clearing');
+
+  // ── Event 1: Radiohead en Montevideo ──────────────────────────────────────
+  // 2 fechas potenciales, min 3000 c/u. Fee schedule makes clearing price ~$185.
+  // Seed 3020 interests per show at max $220 → event already confirmed.
   const { lastID: event1 } = await run(`
     INSERT INTO events (title, artist, description, city, artist_fee_schedule, cost_per_show, profit_margin, deadline, creator_name, creator_email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    'Radiohead en Buenos Aires',
+    'Radiohead en Montevideo',
     'Radiohead',
-    'La legendaria banda de Oxford llega a Buenos Aires. Thom Yorke, Jonny Greenwood y compañía presentan su repertorio completo en un show que promete ser histórico.',
-    'Buenos Aires',
-    JSON.stringify({ '1': 800000, '2': 1100000 }),
-    25000,
+    'La legendaria banda de Oxford llega al Antel Arena. Thom Yorke, Jonny Greenwood y compañía presentan su repertorio completo en un show que promete ser histórico para Uruguay.',
+    'Montevideo',
+    JSON.stringify({ '1': 700000, '2': 950000 }),
+    20000,
     0.12,
     new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     'Matías Fernández',
-    'matias@eventflow.com',
+    'matias@showpool.com',
   ]);
 
   const { lastID: show1a } = await run(`
     INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
     VALUES (?, ?, ?, ?, ?, ?)
-  `, [event1, '2026-10-10', 'Estadio River Plate', 50000, 30000, 0]);
+  `, [event1, '2026-10-10', 'Antel Arena', 18000, 3000, 0]);
 
   const { lastID: show1b } = await run(`
     INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
     VALUES (?, ?, ?, ?, ?, ?)
-  `, [event1, '2026-10-11', 'Estadio River Plate', 50000, 30000, 1]);
+  `, [event1, '2026-10-11', 'Antel Arena', 18000, 3000, 1]);
 
-  // Seed interests for event 1 — show 1a gets enough to confirm, show 1b almost
-  const interests1a = [
-    { name: 'Ana García', email: 'ana@mail.com', desired: 28, max: 35 },
-    { name: 'Luis Martínez', email: 'luis@mail.com', desired: 25, max: 32 },
-    { name: 'Carla Rodríguez', email: 'carla@mail.com', desired: 30, max: 40 },
-    { name: 'Pablo Torres', email: 'pablo@mail.com', desired: 22, max: 30 },
-    { name: 'Sofía López', email: 'sofia@mail.com', desired: 26, max: 34 },
-  ];
-  const interests1b = [
-    { name: 'Ana García', email: 'ana@mail.com', desired: 28, max: 35 },
-    { name: 'Carla Rodríguez', email: 'carla@mail.com', desired: 30, max: 40 },
-    { name: 'Sofía López', email: 'sofia@mail.com', desired: 26, max: 34 },
-  ];
+  // 3020 interests per show: desired $180, max $220 — clearing price ≈ $183.60
+  const rh1Rows = Array.from({ length: 3020 }, (_, i) => [show1a, event1, `Fan ${i + 1}`, `fan${i + 1}@rh1.demo`, 180, 220]);
+  const rh2Rows = Array.from({ length: 3020 }, (_, i) => [show1b, event1, `Fan ${i + 1}`, `fan${i + 1}@rh2.demo`, 180, 220]);
+  await insertInterestsBatch(rh1Rows);
+  await insertInterestsBatch(rh2Rows);
 
-  for (const i of interests1a) {
-    await run(
-      `INSERT INTO interests (show_id, event_id, user_name, user_email, desired_price, max_price) VALUES (?,?,?,?,?,?)`,
-      [show1a, event1, i.name, i.email, i.desired, i.max]
-    );
-  }
-  for (const i of interests1b) {
-    await run(
-      `INSERT INTO interests (show_id, event_id, user_name, user_email, desired_price, max_price) VALUES (?,?,?,?,?,?)`,
-      [show1b, event1, i.name, i.email, i.desired, i.max]
-    );
+  // Run clearing so Event 1 shows as confirmed with current prices
+  const rh1Interests = await all(`SELECT * FROM interests WHERE show_id = ?`, [show1a]);
+  const rh2Interests = await all(`SELECT * FROM interests WHERE show_id = ?`, [show1b]);
+  const rh1Event = { artist_fee_schedule: { '1': 700000, '2': 950000 }, cost_per_show: 20000, profit_margin: 0.12 };
+  const rh1Shows = [
+    { id: show1a, venue_capacity: 18000, min_attendees: 3000, cancellation_buffer: 0.1 },
+    { id: show1b, venue_capacity: 18000, min_attendees: 3000, cancellation_buffer: 0.1 },
+  ];
+  const rh1AllInterests = [...rh1Interests, ...rh2Interests];
+  const rh1Result = runClearing(rh1Event, rh1Shows, rh1AllInterests);
+  if (rh1Result.event_viable) {
+    for (const [showId, sr] of rh1Result.show_results) {
+      await run(`UPDATE shows SET current_clearing_price = ?, status = 'confirmed' WHERE id = ?`, [sr.clearing_price, showId]);
+    }
+    await run(`UPDATE events SET status = 'confirmed', confirmed_shows_count = ? WHERE id = ?`, [rh1Result.confirmed_shows_count, event1]);
   }
 
-  // Event 2: Tame Impala en Córdoba — 1 sola fecha, cerca del mínimo
+  // ── Event 2: Tame Impala en Montevideo ────────────────────────────────────
+  // 1 fecha, min 1500. Fee makes clearing price ≈ $222.
+  // Seed 1498 interests at max $250 → el show necesita exactamente 2 personas más.
+  // Demostración perfecta del simulador: sumarse con $250 pone el evento a 1 sola persona del mínimo.
   const { lastID: event2 } = await run(`
     INSERT INTO events (title, artist, description, city, artist_fee_schedule, cost_per_show, profit_margin, deadline, creator_name, creator_email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    'Tame Impala en Córdoba',
+    'Tame Impala en Montevideo',
     'Tame Impala',
-    'Kevin Parker trae el universo psicodélico de Tame Impala al Anfiteatro del Kempes. Una experiencia visual y sonora única.',
-    'Córdoba',
-    JSON.stringify({ '1': 300000, '2': 420000 }),
-    12000,
+    'Kevin Parker trae el universo psicodélico de Tame Impala al Teatro de Verano. Una experiencia visual y sonora única bajo las estrellas montevideanas.',
+    'Montevideo',
+    JSON.stringify({ '1': 280000, '2': 380000 }),
+    10000,
     0.15,
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     'Valentina Cruz',
-    'vale@eventflow.com',
+    'vale@showpool.com',
   ]);
 
   const { lastID: show2 } = await run(`
     INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
     VALUES (?, ?, ?, ?, ?, ?)
-  `, [event2, '2026-09-20', 'Anfiteatro Mario Alberto Kempes', 20000, 12000, 0]);
+  `, [event2, '2026-09-20', 'Teatro de Verano Ramón Collazo', 15000, 1500, 0]);
 
-  const interests2 = [
-    { name: 'Tomás Ríos', email: 'tomas@mail.com', desired: 28, max: 36 },
-    { name: 'Marina Blanco', email: 'marina@mail.com', desired: 24, max: 31 },
-    { name: 'Diego Sosa', email: 'diego@mail.com', desired: 27, max: 33 },
-  ];
-  for (const i of interests2) {
-    await run(
-      `INSERT INTO interests (show_id, event_id, user_name, user_email, desired_price, max_price) VALUES (?,?,?,?,?,?)`,
-      [show2, event2, i.name, i.email, i.desired, i.max]
-    );
-  }
+  const ti2Rows = Array.from({ length: 1498 }, (_, i) => [show2, event2, `Fan ${i + 1}`, `fan${i + 1}@ti.demo`, 200, 250]);
+  await insertInterestsBatch(ti2Rows);
 
-  // Event 3: Sigur Rós en Rosario — recién creado, sin intereses
+  // ── Event 3: Sigur Rós en Montevideo ──────────────────────────────────────
+  // 3 fechas potenciales, recién creado, sin intereses aún.
+  // Fee makes clearing price ≈ $194 at min 600.
   const { lastID: event3 } = await run(`
     INSERT INTO events (title, artist, description, city, artist_fee_schedule, cost_per_show, profit_margin, deadline, creator_name, creator_email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    'Sigur Rós en Rosario',
+    'Sigur Rós en Montevideo',
     'Sigur Rós',
-    'Los islandeses maestros del post-rock ambiental en el Teatro El Círculo. Una noche para olvidar el mundo.',
-    'Rosario',
+    'Los islandeses maestros del post-rock ambiental en el Auditorio Nacional del SODRE. Una noche para olvidar el mundo.',
+    'Montevideo',
     JSON.stringify({ '1': 180000, '2': 240000, '3': 280000 }),
     8000,
     0.15,
     new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     'Ignacio Peralta',
-    'igna@eventflow.com',
+    'igna@showpool.com',
   ]);
 
-  await run(`
-    INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [event3, '2026-11-05', 'Teatro El Círculo', 2500, 1500, 0]);
-
-  await run(`
-    INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [event3, '2026-11-06', 'Teatro El Círculo', 2500, 1500, 1]);
-
-  await run(`
-    INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [event3, '2026-11-07', 'Teatro El Círculo', 2500, 1500, 2]);
+  await run(`INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+    [event3, '2026-11-05', 'Auditorio Nacional del SODRE', 2000, 600, 0]);
+  await run(`INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+    [event3, '2026-11-06', 'Auditorio Nacional del SODRE', 2000, 600, 1]);
+  await run(`INSERT INTO shows (event_id, date, venue_name, venue_capacity, min_attendees, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+    [event3, '2026-11-07', 'Auditorio Nacional del SODRE', 2000, 600, 2]);
 
   console.log('Seed data loaded.');
 }

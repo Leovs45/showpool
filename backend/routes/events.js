@@ -262,7 +262,7 @@ router.get('/:id/simulate', async (req, res) => {
 
 function buildSimMessage(current, sim, show, maxPrice) {
   if (!sim.event_viable) {
-    return 'Aunque te sumés, el evento todavía no alcanza el mínimo necesario.';
+    return 'Aunque te sumes, el evento todavía no alcanza el mínimo necesario.';
   }
   const simShowResult = sim.show_results.get(show?.id);
   if (!simShowResult) return 'Este show no sería confirmado.';

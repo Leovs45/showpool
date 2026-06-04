@@ -8,7 +8,7 @@ function Nav() {
   return (
     <nav className="nav">
       <div className="container nav-inner">
-        <Link to="/" className="nav-logo">event<span>flow</span></Link>
+        <Link to="/" className="nav-logo">Show<span>pool</span></Link>
         <Link to="/create" className="btn btn-primary btn-sm">+ Crear evento</Link>
       </div>
     </nav>

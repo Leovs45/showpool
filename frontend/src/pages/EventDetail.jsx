@@ -100,12 +100,12 @@ function InterestForm({ eventId, shows, onSuccess }) {
         </div>
         <div className="form-group">
           <label className="form-label">Precio deseado por show</label>
-          <input className="form-input" type="number" min="1" step="0.01" required value={form.desired_price} onChange={e => set('desired_price', e.target.value)} placeholder="$25" />
+          <input className="form-input" type="number" min="1" step="1" required value={form.desired_price} onChange={e => set('desired_price', e.target.value)} placeholder="$25" />
           <span className="form-hint">Lo que te gustaría pagar idealmente</span>
         </div>
         <div className="form-group">
           <label className="form-label">Precio máximo por show</label>
-          <input className="form-input" type="number" min="1" step="0.01" required value={form.max_price} onChange={e => set('max_price', e.target.value)} placeholder="$40" />
+          <input className="form-input" type="number" min="1" step="1" required value={form.max_price} onChange={e => set('max_price', e.target.value)} placeholder="$40" />
           <span className="form-hint">No pagarás más que esto, nunca</span>
         </div>
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -280,7 +280,7 @@ export default function EventDetail() {
                   {checking ? 'Calculando...' : 'Recalcular clearing'}
                 </button>
                 <button className="btn btn-sm" style={{ background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }} onClick={() => runCheck(true)} disabled={checking || !isOpen}>
-                  Simular cierre de plazo
+                  Cerrar plazo
                 </button>
               </div>
               {checkResult && (

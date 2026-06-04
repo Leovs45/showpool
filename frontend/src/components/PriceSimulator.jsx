@@ -50,7 +50,7 @@ export default function PriceSimulator({ eventId, showId, currentPrice }) {
           className="form-input"
           type="number"
           min="1"
-          step="0.01"
+          step="1"
           placeholder="tu precio máximo"
           value={maxPrice}
           onChange={e => setMaxPrice(e.target.value)}

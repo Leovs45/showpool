@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3001;
 async function start() {
   await initSchema();
   await seedData();
-  app.listen(PORT, () => console.log(`EventFlow API running on http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`Showpool API running on http://localhost:${PORT}`));
 }
 
 start().catch(err => {

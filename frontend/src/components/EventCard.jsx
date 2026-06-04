@@ -28,8 +28,8 @@ export default function EventCard({ event }) {
   const showCount = event.shows.length;
 
   return (
-    <Link to={`/events/${event.id}`}>
-      <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <Link to={`/events/${event.id}`} style={{ display: 'block', height: '100%' }}>
+      <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, height: '100%', boxSizing: 'border-box' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <div>
@@ -75,7 +75,7 @@ export default function EventCard({ event }) {
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', paddingTop: 4, borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
           <span>{event.venue_name || event.shows[0]?.venue_name}</span>
           <span>{daysLeft(event.deadline)}</span>
         </div>

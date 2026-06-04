@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 
 const DEFAULT_MARGIN = 0.15;
 
-function ShowRow({ show, index, onChange, onRemove, canRemove }) {
+function ShowRow({ show, index, onChange, onRemove, canRemove, submitted }) {
   const set = (k, v) => onChange(index, { ...show, [k]: v });
+  const errStyle = (val) =>
+    submitted && !String(val ?? '').trim()
+      ? { borderColor: '#ef4444', boxShadow: '0 0 0 1px #ef4444' }
+      : {};
   return (
     <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -16,19 +20,19 @@ function ShowRow({ show, index, onChange, onRemove, canRemove }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="form-group">
           <label className="form-label">Fecha del show</label>
-          <input className="form-input" type="date" required value={show.date} onChange={e => set('date', e.target.value)} />
+          <input className="form-input" type="date" lang="es" required value={show.date} onChange={e => set('date', e.target.value)} style={errStyle(show.date)} />
         </div>
         <div className="form-group">
           <label className="form-label">Nombre del venue</label>
-          <input className="form-input" required value={show.venue_name} onChange={e => set('venue_name', e.target.value)} placeholder="Estadio River Plate" />
+          <input className="form-input" required value={show.venue_name} onChange={e => set('venue_name', e.target.value)} placeholder="Antel Arena" style={errStyle(show.venue_name)} />
         </div>
         <div className="form-group">
           <label className="form-label">Capacidad del venue</label>
-          <input className="form-input" type="number" required min="1" value={show.venue_capacity} onChange={e => set('venue_capacity', Number(e.target.value))} placeholder="5000" />
+          <input className="form-input" type="number" required min="1" value={show.venue_capacity} onChange={e => set('venue_capacity', Number(e.target.value))} placeholder="5000" style={errStyle(show.venue_capacity)} />
         </div>
         <div className="form-group">
           <label className="form-label">Mínimo viable</label>
-          <input className="form-input" type="number" required min="1" value={show.min_attendees} onChange={e => set('min_attendees', Number(e.target.value))} placeholder="3000" />
+          <input className="form-input" type="number" required min="1" value={show.min_attendees} onChange={e => set('min_attendees', Number(e.target.value))} placeholder="3000" style={errStyle(show.min_attendees)} />
           <span className="form-hint">Mínimo de personas para confirmar esta fecha</span>
         </div>
       </div>
@@ -64,8 +68,19 @@ export default function CreateEvent() {
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const errStyle = (val) =>
+    submitted && !String(val ?? '').trim()
+      ? { borderColor: '#ef4444', boxShadow: '0 0 0 1px #ef4444' }
+      : {};
+
+  const minShowDate = shows
+    .map(s => s.date)
+    .filter(Boolean)
+    .sort()[0] ?? '';
 
   const addShow = () => setShows(s => [...s, { date: '', venue_name: '', venue_capacity: '', min_attendees: '' }]);
   const updateShow = (i, val) => setShows(s => s.map((x, idx) => idx === i ? val : x));
@@ -85,6 +100,19 @@ export default function CreateEvent() {
 
   const submit = async (e) => {
     e.preventDefault();
+    setSubmitted(true);
+
+    const requiredFilled =
+      form.title.trim() && form.artist.trim() && form.city.trim() &&
+      String(form.cost_per_show).trim() && form.deadline && form.creator_name.trim() && form.creator_email.trim() &&
+      shows.every(s => s.date && s.venue_name.trim() && s.venue_capacity && s.min_attendees);
+    if (!requiredFilled) { setError('Por favor completá todos los campos obligatorios.'); return; }
+
+    if (minShowDate && form.deadline >= minShowDate) {
+      setError('La fecha límite de participación debe ser anterior a la primera fecha del show.');
+      return;
+    }
+
     const schedule = parseFeeSchedule(form.fee_schedule_text);
     if (!schedule) { setError('El formato del fee schedule no es válido. Usá "1: 50000" por línea.'); return; }
     setLoading(true); setError(null);
@@ -137,15 +165,15 @@ export default function CreateEvent() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label className="form-label">Nombre del evento</label>
-                <input className="form-input" required value={form.title} onChange={e => set('title', e.target.value)} placeholder="Radiohead en Buenos Aires" />
+                <input className="form-input" required value={form.title} onChange={e => set('title', e.target.value)} placeholder="Radiohead en Montevideo" style={errStyle(form.title)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Artista / Banda</label>
-                <input className="form-input" required value={form.artist} onChange={e => set('artist', e.target.value)} placeholder="Radiohead" />
+                <input className="form-input" required value={form.artist} onChange={e => set('artist', e.target.value)} placeholder="Radiohead" style={errStyle(form.artist)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Ciudad</label>
-                <input className="form-input" required value={form.city} onChange={e => set('city', e.target.value)} placeholder="Buenos Aires" />
+                <input className="form-input" required value={form.city} onChange={e => set('city', e.target.value)} placeholder="Montevideo" style={errStyle(form.city)} />
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label className="form-label">Descripción</label>
@@ -175,7 +203,7 @@ export default function CreateEvent() {
               </div>
               <div className="form-group">
                 <label className="form-label">Costo fijo por fecha (USD)</label>
-                <input className="form-input" type="number" min="0" required value={form.cost_per_show} onChange={e => set('cost_per_show', e.target.value)} placeholder="5000" />
+                <input className="form-input" type="number" min="0" required value={form.cost_per_show} onChange={e => set('cost_per_show', e.target.value)} placeholder="5000" style={errStyle(form.cost_per_show)} />
                 <span className="form-hint">Producción, venue, sonido, etc.</span>
               </div>
               <div className="form-group">
@@ -231,7 +259,7 @@ export default function CreateEvent() {
               <button type="button" className="btn btn-secondary btn-sm" onClick={addShow}>+ Agregar fecha</button>
             </div>
             {shows.map((show, i) => (
-              <ShowRow key={i} show={show} index={i} onChange={updateShow} onRemove={removeShow} canRemove={shows.length > 1} />
+              <ShowRow key={i} show={show} index={i} onChange={updateShow} onRemove={removeShow} canRemove={shows.length > 1} submitted={submitted} />
             ))}
           </section>
 
@@ -243,25 +271,30 @@ export default function CreateEvent() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label className="form-label">Fecha límite de participación</label>
-                <input className="form-input" type="date" required value={form.deadline} onChange={e => set('deadline', e.target.value)} />
+                <input className="form-input" type="date" lang="es" required value={form.deadline} max={minShowDate || undefined} onChange={e => set('deadline', e.target.value)} style={errStyle(form.deadline)} />
                 <span className="form-hint">Al llegar esta fecha se cierran las inscripciones, se calcula el precio final y se procesan los cobros.</span>
               </div>
               <div className="form-group">
                 <label className="form-label">Tu nombre</label>
-                <input className="form-input" required value={form.creator_name} onChange={e => set('creator_name', e.target.value)} placeholder="Matías Fernández" />
+                <input className="form-input" required value={form.creator_name} onChange={e => set('creator_name', e.target.value)} placeholder="Matías Fernández" style={errStyle(form.creator_name)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Tu email</label>
-                <input className="form-input" type="email" required value={form.creator_email} onChange={e => set('creator_email', e.target.value)} placeholder="matias@mail.com" />
+                <input className="form-input" type="email" required value={form.creator_email} onChange={e => set('creator_email', e.target.value)} placeholder="matias@mail.com" style={errStyle(form.creator_email)} />
               </div>
             </div>
           </section>
 
           {error && <div className="alert alert-error">{error}</div>}
 
-          <button className="btn btn-primary" type="submit" disabled={loading} style={{ alignSelf: 'flex-start', fontSize: 15, padding: '12px 28px' }}>
-            {loading ? 'Creando...' : 'Crear evento'}
-          </button>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={loading} style={{ fontSize: 15, padding: '12px 28px' }}>
+              {loading ? 'Creando...' : 'Crear evento'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/')} style={{ fontSize: 15, padding: '12px 28px' }}>
+              Cancelar
+            </button>
+          </div>
         </form>
       </div>
     </main>

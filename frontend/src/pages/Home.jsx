@@ -38,6 +38,7 @@ export default function Home() {
             { key: 'open', label: 'Abiertos' },
             { key: 'confirmed', label: 'Confirmados' },
             { key: 'funded', label: 'Cerrados' },
+            { key: 'failed', label: 'Cancelados' },
           ].map(f => (
             <button
               key={f.key}
