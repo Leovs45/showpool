@@ -1,0 +1,41 @@
+{
+  "CallerReference": "showpool-frontend-2026",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [{
+      "Id": "S3-Website-showpool-frontend",
+      "DomainName": "showpool-frontend.s3-website-us-east-1.amazonaws.com",
+      "CustomOriginConfig": {
+        "HTTPPort": 80,
+        "HTTPSPort": 443,
+        "OriginProtocolPolicy": "http-only"
+      }
+    }]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "S3-Website-showpool-frontend",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["HEAD", "GET"],
+      "CachedMethods": {
+        "Quantity": 2,
+        "Items": ["HEAD", "GET"]
+      }
+    },
+    "Compress": true
+  },
+  "CustomErrorResponses": {
+    "Quantity": 1,
+    "Items": [{
+      "ErrorCode": 404,
+      "ResponsePagePath": "/index.html",
+      "ResponseCode": "200",
+      "ErrorCachingMinTTL": 300
+    }]
+  },
+  "Comment": "showpool-frontend",
+  "Enabled": true,
+  "PriceClass": "PriceClass_100"
+}
