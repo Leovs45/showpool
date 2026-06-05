@@ -1,98 +1,97 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool, types } = require('pg');
 
-const DB_PATH = path.join(__dirname, 'showpool.db');
+// pg returns BIGINT (COUNT results) as strings by default — parse as integers
+types.setTypeParser(20, (val) => parseInt(val, 10));
 
-let db;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-function getDb() {
-  if (!db) {
-    db = new sqlite3.Database(DB_PATH);
-    db.run('PRAGMA foreign_keys = ON');
-    db.run('PRAGMA journal_mode = WAL');
-  }
-  return db;
+// Convert SQLite-style ? placeholders to PostgreSQL $1, $2, ...
+function convertPlaceholders(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-// Promisified helpers
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
+// run: for INSERT/UPDATE/DELETE. Auto-appends RETURNING id to INSERTs.
+async function run(sql, params = []) {
+  const converted = convertPlaceholders(sql);
+  const isInsert = /^\s*INSERT/i.test(converted.trim());
+  const query =
+    isInsert && !/RETURNING/i.test(converted)
+      ? converted + ' RETURNING id'
+      : converted;
+  const result = await pool.query(query, params);
+  return {
+    lastID: result.rows[0]?.id ?? null,
+    changes: result.rowCount,
+  };
 }
 
-function get(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+// get: returns a single row or null
+async function get(sql, params = []) {
+  const result = await pool.query(convertPlaceholders(sql), params);
+  return result.rows[0] ?? null;
 }
 
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+// all: returns all matching rows
+async function all(sql, params = []) {
+  const result = await pool.query(convertPlaceholders(sql), params);
+  return result.rows;
 }
 
 async function initSchema() {
-  await run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS events (
-      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      id                    SERIAL PRIMARY KEY,
       title                 TEXT NOT NULL,
       artist                TEXT NOT NULL,
       description           TEXT,
       city                  TEXT NOT NULL,
       artist_fee_schedule   TEXT NOT NULL,
-      cost_per_show         REAL NOT NULL DEFAULT 0,
-      profit_margin         REAL NOT NULL DEFAULT 0.15,
+      cost_per_show         DOUBLE PRECISION NOT NULL DEFAULT 0,
+      profit_margin         DOUBLE PRECISION NOT NULL DEFAULT 0.15,
       deadline              TEXT NOT NULL,
       status                TEXT NOT NULL DEFAULT 'open',
       confirmed_shows_count INTEGER,
       creator_name          TEXT NOT NULL,
       creator_email         TEXT NOT NULL,
-      created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at            TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
 
-  await run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS shows (
-      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id              INTEGER NOT NULL REFERENCES events(id),
-      date                  TEXT NOT NULL,
-      venue_name            TEXT NOT NULL,
-      venue_capacity        INTEGER NOT NULL,
-      min_attendees         INTEGER NOT NULL,
-      cancellation_buffer   REAL NOT NULL DEFAULT 0.10,
-      status                TEXT NOT NULL DEFAULT 'open',
-      current_clearing_price REAL,
-      final_clearing_price  REAL,
-      sort_order            INTEGER NOT NULL DEFAULT 0,
-      created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+      id                     SERIAL PRIMARY KEY,
+      event_id               INTEGER NOT NULL REFERENCES events(id),
+      date                   TEXT NOT NULL,
+      venue_name             TEXT NOT NULL,
+      venue_capacity         INTEGER NOT NULL,
+      min_attendees          INTEGER NOT NULL,
+      cancellation_buffer    DOUBLE PRECISION NOT NULL DEFAULT 0.10,
+      status                 TEXT NOT NULL DEFAULT 'open',
+      current_clearing_price DOUBLE PRECISION,
+      final_clearing_price   DOUBLE PRECISION,
+      sort_order             INTEGER NOT NULL DEFAULT 0,
+      created_at             TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
 
-  await run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS interests (
-      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      id                  SERIAL PRIMARY KEY,
       show_id             INTEGER NOT NULL REFERENCES shows(id),
       event_id            INTEGER NOT NULL REFERENCES events(id),
       user_name           TEXT NOT NULL,
       user_email          TEXT NOT NULL,
-      desired_price       REAL NOT NULL,
-      max_price           REAL NOT NULL,
-      final_price         REAL,
+      desired_price       DOUBLE PRECISION NOT NULL,
+      max_price           DOUBLE PRECISION NOT NULL,
+      final_price         DOUBLE PRECISION,
       payment_placeholder TEXT NOT NULL DEFAULT 'card ending in 4242',
       status              TEXT NOT NULL DEFAULT 'interested',
       confirmed_at        TEXT,
-      created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
       UNIQUE(show_id, user_email)
     )
   `);
@@ -112,7 +111,7 @@ async function insertInterestsBatch(rows) {
 
 async function seedData() {
   const existing = await get('SELECT COUNT(*) as count FROM events');
-  if (existing.count > 0) return;
+  if (Number(existing.count) > 0) return;
 
   const { runClearing } = require('./clearing');
 
@@ -145,7 +144,6 @@ async function seedData() {
     VALUES (?, ?, ?, ?, ?, ?)
   `, [event1, '2026-10-11', 'Antel Arena', 18000, 3000, 1]);
 
-  // 3020 interests per show: desired $180, max $220 — clearing price ≈ $183.60
   const rh1Rows = Array.from({ length: 3020 }, (_, i) => [show1a, event1, `Fan ${i + 1}`, `fan${i + 1}@rh1.demo`, 180, 220]);
   const rh2Rows = Array.from({ length: 3020 }, (_, i) => [show1b, event1, `Fan ${i + 1}`, `fan${i + 1}@rh2.demo`, 180, 220]);
   await insertInterestsBatch(rh1Rows);
@@ -159,8 +157,7 @@ async function seedData() {
     { id: show1a, venue_capacity: 18000, min_attendees: 3000, cancellation_buffer: 0.1 },
     { id: show1b, venue_capacity: 18000, min_attendees: 3000, cancellation_buffer: 0.1 },
   ];
-  const rh1AllInterests = [...rh1Interests, ...rh2Interests];
-  const rh1Result = runClearing(rh1Event, rh1Shows, rh1AllInterests);
+  const rh1Result = runClearing(rh1Event, rh1Shows, [...rh1Interests, ...rh2Interests]);
   if (rh1Result.event_viable) {
     for (const [showId, sr] of rh1Result.show_results) {
       await run(`UPDATE shows SET current_clearing_price = ?, status = 'confirmed' WHERE id = ?`, [sr.clearing_price, showId]);
@@ -170,8 +167,7 @@ async function seedData() {
 
   // ── Event 2: Tame Impala en Montevideo ────────────────────────────────────
   // 1 fecha, min 1500. Fee makes clearing price ≈ $222.
-  // Seed 1498 interests at max $250 → el show necesita exactamente 2 personas más.
-  // Demostración perfecta del simulador: sumarse con $250 pone el evento a 1 sola persona del mínimo.
+  // Seed 1498 interests → faltan exactamente 2 personas para confirmar.
   const { lastID: event2 } = await run(`
     INSERT INTO events (title, artist, description, city, artist_fee_schedule, cost_per_show, profit_margin, deadline, creator_name, creator_email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -197,8 +193,7 @@ async function seedData() {
   await insertInterestsBatch(ti2Rows);
 
   // ── Event 3: Sigur Rós en Montevideo ──────────────────────────────────────
-  // 3 fechas potenciales, recién creado, sin intereses aún.
-  // Fee makes clearing price ≈ $194 at min 600.
+  // 3 fechas potenciales, recién creado, sin intereses.
   const { lastID: event3 } = await run(`
     INSERT INTO events (title, artist, description, city, artist_fee_schedule, cost_per_show, profit_margin, deadline, creator_name, creator_email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

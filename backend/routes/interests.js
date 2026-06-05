@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
       },
     });
   } catch (err) {
-    if (err.message?.includes('UNIQUE constraint')) {
+    if (err.code === '23505' || err.message?.includes('duplicate key')) {
       return res.status(409).json({ error: 'You have already expressed interest in this show' });
     }
     res.status(500).json({ error: err.message });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import EventProgress from '../components/EventProgress';
 import PriceSimulator from '../components/PriceSimulator';
+import { API_BASE } from '../lib/api';
 
 const STATUS_LABEL = { open: 'Abierto', confirmed: 'Confirmado', funded: 'Cerrado', failed: 'Cancelado' };
 
@@ -41,7 +42,7 @@ function InterestForm({ eventId, shows, onSuccess }) {
     try {
       const results = [];
       for (const showId of form.selectedShows) {
-        const res = await fetch(`/api/shows/${showId}/interest`, {
+        const res = await fetch(`${API_BASE}/api/shows/${showId}/interest`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -137,7 +138,7 @@ export default function EventDetail() {
   const [activeSimShow, setActiveSimShow] = useState(null);
 
   const load = () => {
-    fetch(`/api/events/${id}`)
+    fetch(`${API_BASE}/api/events/${id}`)
       .then(r => r.json())
       .then(data => { setEvent(data); setLoading(false); setActiveSimShow(s => s ?? data.shows[0]?.id); })
       .catch(() => setLoading(false));
@@ -152,7 +153,7 @@ export default function EventDetail() {
 
   const runCheck = async (finalize = false) => {
     setChecking(true);
-    const res = await fetch(`/api/events/${id}/check${finalize ? '?finalize=true' : ''}`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/api/events/${id}/check${finalize ? '?finalize=true' : ''}`, { method: 'POST' });
     const data = await res.json();
     setCheckResult(data.clearing_result);
     load();

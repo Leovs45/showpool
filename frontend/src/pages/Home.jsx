@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import EventCard from '../components/EventCard';
+import { API_BASE } from '../lib/api';
 
 export default function Home() {
   const [events, setEvents] = useState([]);
@@ -8,7 +9,7 @@ export default function Home() {
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    fetch('/api/events')
+    fetch(`${API_BASE}/api/events`)
       .then(r => r.json())
       .then(data => { setEvents(data); setLoading(false); })
       .catch(() => setLoading(false));

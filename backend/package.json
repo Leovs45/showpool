@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --env-file=.env --watch index.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +13,6 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "sqlite3": "^6.0.1"
+    "pg": "^8.13.3"
   }
 }

@@ -30,13 +30,13 @@ export default function EventCard({ event }) {
   return (
     <Link to={`/events/${event.id}`} style={{ display: 'block', height: '100%' }}>
       <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, height: '100%', boxSizing: 'border-box' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        {/* Header — minHeight garantiza que títulos cortos ocupan lo mismo que 2 líneas */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, minHeight: 60 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {event.city}
             </div>
-            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{event.title}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{event.title}</div>
           </div>
           <span className={`badge badge-${event.status}`}>{STATUS_LABEL[event.status]}</span>
         </div>
@@ -48,11 +48,11 @@ export default function EventCard({ event }) {
               {new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
             </span>
           ))}
-          {showCount > 1 && <span style={{ color: 'var(--accent)', fontSize: 12 }}>{showCount} fechas</span>}
+          {showCount > 1 && <span style={{ color: 'var(--accent)', fontSize: 12, marginLeft: 'auto', alignSelf: 'center' }}>{showCount} fechas</span>}
         </div>
 
         {/* Precio */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', minHeight: 52 }}>
           {price ? (
             <div>
               <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>
@@ -71,12 +71,11 @@ export default function EventCard({ event }) {
 
         {/* Progress del primer show */}
         {event.shows[0] && (
-          <EventProgress show={event.shows[0]} label={showCount > 1 ? event.shows[0].venue_name : null} />
+          <EventProgress show={event.shows[0]} label={event.shows[0].venue_name} />
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', paddingTop: 4, borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
-          <span>{event.venue_name || event.shows[0]?.venue_name}</span>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 12, color: 'var(--text-dim)', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
           <span>{daysLeft(event.deadline)}</span>
         </div>
       </div>

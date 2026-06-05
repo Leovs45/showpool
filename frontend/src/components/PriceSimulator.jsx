@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../lib/api';
 
 export default function PriceSimulator({ eventId, showId, currentPrice }) {
   const [maxPrice, setMaxPrice] = useState('');
@@ -14,7 +15,7 @@ export default function PriceSimulator({ eventId, showId, currentPrice }) {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/events/${eventId}/simulate?show_id=${showId}&max_price=${maxPrice}&desired_price=${maxPrice}`
+          `${API_BASE}/api/events/${eventId}/simulate?show_id=${showId}&max_price=${maxPrice}&desired_price=${maxPrice}`
         );
         const data = await res.json();
         setResult(data);

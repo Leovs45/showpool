@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE } from '../lib/api';
 
 const DEFAULT_MARGIN = 0.15;
 
@@ -117,7 +118,7 @@ export default function CreateEvent() {
     if (!schedule) { setError('El formato del fee schedule no es válido. Usá "1: 50000" por línea.'); return; }
     setLoading(true); setError(null);
     try {
-      const res = await fetch('/api/events', {
+      const res = await fetch(`${API_BASE}/api/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
